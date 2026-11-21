@@ -7,7 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="時鐘看板">
-  <title>全螢幕時鐘與天氣</title>
+  <title>全螢幕時鐘與出門決策看板</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
     html, body {
@@ -20,24 +20,44 @@
     }
     .board {
       width: 100%; height: 100%;
-      padding: max(24px, env(safe-area-inset-top)) max(32px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(32px, env(safe-area-inset-left));
+      padding: max(20px, env(safe-area-inset-top)) max(28px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(28px, env(safe-area-inset-left));
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       transition: opacity 1.2s ease, transform 1.5s ease;
     }
-    /* 深夜模式：整體壓暗文字與邊框，減少夜間反光刺眼（數值越小越暗，範圍 0.1 ~ 1.0） */
+    /* 深夜模式：整體壓暗文字與邊框（數值範圍 0.1 ~ 1.0） */
     .board.night-dimmed {
       opacity: 0.32;
     }
+
+    /* 頂部日期、農曆與地點列 */
     .top-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: clamp(1.1rem, 2.5vw, 1.8rem);
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: clamp(1rem, 2.2vw, 1.5rem);
       color: #a1a1aa;
       font-weight: 500;
     }
+    .date-group {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .lunar-badge {
+      font-size: 0.85em;
+      color: #d4d4d8;
+      background: #18181b;
+      border: 1px solid #27272a;
+      padding: 4px 12px;
+      border-radius: 999px;
+    }
+
+    /* 中央大時鐘 */
     .clock-wrap {
       display: flex;
       align-items: baseline;
@@ -46,47 +66,128 @@
       margin: auto 0;
     }
     .time {
-      font-size: clamp(5.5rem, 22vw, 16rem);
+      font-size: clamp(5rem, 19vw, 14.5rem);
       font-weight: 700;
       letter-spacing: -0.04em;
       line-height: 1;
       font-variant-numeric: tabular-nums;
     }
     .seconds {
-      font-size: clamp(2rem, 6vw, 4.5rem);
+      font-size: clamp(1.8rem, 5vw, 4rem);
       font-weight: 400;
       color: #71717a;
       font-variant-numeric: tabular-nums;
     }
-    .weather-bar {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: clamp(16px, 4vw, 40px);
-      padding: 16px 24px;
+
+    /* 底部出門決策氣象看板 */
+    .weather-card {
+      width: 100%;
+      max-width: 880px;
+      align-self: center;
       background: #121214;
       border: 1px solid #27272a;
-      border-radius: 20px;
-      align-self: center;
+      border-radius: 22px;
+      padding: 16px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .weather-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .weather-current {
+      display: flex;
+      align-items: center;
+      gap: clamp(14px, 3vw, 28px);
     }
     .temp-main {
-      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-size: clamp(2.2rem, 4.8vw, 3.4rem);
       font-weight: 600;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
     }
     .weather-meta {
       display: flex;
       flex-direction: column;
       gap: 4px;
-      font-size: clamp(0.95rem, 2vw, 1.3rem);
-      color: #d4d4d8;
+      font-size: clamp(0.95rem, 1.9vw, 1.25rem);
+      color: #f4f4f5;
     }
-    .weather-sub { color: #71717a; font-size: 0.9em; }
+    .weather-sub {
+      color: #a1a1aa;
+      font-size: 0.88em;
+    }
+
+    /* 空氣品質膠囊標籤 */
+    .aqi-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #18181b;
+      border: 1px solid #27272a;
+      padding: 8px 14px;
+      border-radius: 14px;
+      font-size: clamp(0.85rem, 1.6vw, 1.05rem);
+      color: #e4e4e7;
+    }
+    .aqi-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: #71717a;
+      flex-shrink: 0;
+    }
+
+    /* 未來 6 小時降雨機率條 */
+    .hourly-strip {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      padding-top: 12px;
+      border-top: 1px solid #27272a;
+      text-align: center;
+    }
+    .hour-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 4px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .hour-time {
+      font-size: clamp(0.8rem, 1.4vw, 0.95rem);
+      color: #a1a1aa;
+      font-variant-numeric: tabular-nums;
+    }
+    .hour-icon {
+      font-size: clamp(1.1rem, 2vw, 1.4rem);
+      line-height: 1.2;
+    }
+    .hour-rain {
+      font-size: clamp(0.85rem, 1.5vw, 1rem);
+      color: #71717a;
+      font-variant-numeric: tabular-nums;
+    }
+    /* 降雨機率達 40% 以上自動亮藍提示帶傘 */
+    .hour-rain.rain-alert {
+      color: #38bdf8;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
   <div class="board" id="board">
     <div class="top-bar">
-      <span id="date">載入日期中...</span>
+      <div class="date-group">
+        <span id="date">載入日期中...</span>
+        <span class="lunar-badge" id="lunar">農曆計算中...</span>
+      </div>
       <span id="location">台北</span>
     </div>
 
@@ -95,11 +196,28 @@
       <div class="seconds" id="seconds">00</div>
     </div>
 
-    <div class="weather-bar">
-      <div class="temp-main" id="temp">--°</div>
-      <div class="weather-meta">
-        <div id="condition">天氣載入中...</div>
-        <div class="weather-sub" id="detail">最高 --° / 最低 --° · 濕度 --%</div>
+    <div class="weather-card">
+      <div class="weather-top">
+        <div class="weather-current">
+          <div class="temp-main" id="temp">--°</div>
+          <div class="weather-meta">
+            <div id="condition">天氣載入中...</div>
+            <div class="weather-sub" id="detail">最高 --° / 最低 --° · 體感 --° · 濕度 --% · 風速 -- km/h</div>
+          </div>
+        </div>
+        <div class="aqi-badge">
+          <span class="aqi-dot" id="aqi-dot"></span>
+          <span id="aqi-text">空氣品質載入中...</span>
+        </div>
+      </div>
+
+      <div class="hourly-strip" id="hourly-strip">
+        <div class="hour-item"><span class="hour-time">--:--</span><span class="hour-icon">⏳</span><span class="hour-rain">--%</span></div>
+        <div class="hour-item"><span class="hour-time">--:--</span><span class="hour-icon">⏳</span><span class="hour-rain">--%</span></div>
+        <div class="hour-item"><span class="hour-time">--:--</span><span class="hour-icon">⏳</span><span class="hour-rain">--%</span></div>
+        <div class="hour-item"><span class="hour-time">--:--</span><span class="hour-icon">⏳</span><span class="hour-rain">--%</span></div>
+        <div class="hour-item"><span class="hour-time">--:--</span><span class="hour-icon">⏳</span><span class="hour-rain">--%</span></div>
+        <div class="hour-item"><span class="hour-time">--:--</span><span class="hour-icon">⏳</span><span class="hour-rain">--%</span></div>
       </div>
     </div>
   </div>
@@ -110,19 +228,114 @@
     const LAT = 25.0330;          // 緯度
     const LON = 121.5654;         // 經度
 
-    const NIGHT_START_HOUR = 23;  // 深夜開始時間（24小時制，23 = 晚上 11:00）
-    const NIGHT_END_HOUR = 6;     // 深夜結束時間（24小時制，6 = 早上 06:00 恢復亮起）
+    const NIGHT_START_HOUR = 23;  // 深夜開始時間（23 = 晚上 11:00）
+    const NIGHT_END_HOUR = 6;     // 深夜結束時間（6 = 早上 06:00 恢復亮起）
     // ==============================================
 
-    const weatherMap = {
-      0: "☀️ 晴朗", 1: "🌤️ 大致晴朗", 2: "⛅ 多雲", 3: "☁️ 陰天",
-      45: "🌫️ 有霧", 48: "🌫️ 濃霧", 51: "🌦️ 毛毛雨", 53: "🌦️ 小雨",
-      61: "🌧️ 小雨", 63: "🌧️ 中雨", 65: "🌧️ 大雨", 80: "🌦️ 陣雨",
-      81: "🌧️ 強陣雨", 95: "⛈️ 雷陣雨"
+    const weatherIconMap = {
+      0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️",
+      45: "🌫️", 48: "🌫️", 51: "🌦️", 53: "🌦️", 55: "🌧️",
+      61: "🌧️", 63: "🌧️", 65: "🌧️", 80: "🌦️", 81: "🌧️", 82: "⛈️",
+      95: "⛈️", 96: "⛈️", 99: "⛈️"
     };
+
+    const weatherTextMap = {
+      0: "☀️ 晴朗", 1: "🌤️ 大致晴朗", 2: "⛅ 多雲", 3: "☁️ 陰天",
+      45: "🌫️ 有霧", 48: "🌫️ 濃霧", 51: "🌦️ 毛毛雨", 53: "🌦️ 小雨", 55: "🌧️ 綿密小雨",
+      61: "🌧️ 小雨", 63: "🌧️ 中雨", 65: "🌧️ 大雨", 80: "🌦️ 陣雨", 81: "🌧️ 強陣雨", 82: "⛈️ 劇烈陣雨",
+      95: "⛈️ 雷陣雨", 96: "⛈️ 雷雨伴冰雹", 99: "⛈️ 強雷雨"
+    };
+
+    // 二十四節氣計算
+    const solarTerms = [
+      "小寒", "大寒", "立春", "雨水", "驚蟄", "春分",
+      "清明", "穀雨", "立夏", "小滿", "芒種", "夏至",
+      "小暑", "大暑", "立秋", "處暑", "白露", "秋分",
+      "寒露", "霜降", "立冬", "小雪", "大雪", "冬至"
+    ];
+    const sTermInfo = [
+      0, 21208, 42467, 63836, 85337, 107014, 128867, 150921, 173149, 195551, 218072, 240693,
+      263343, 285989, 308563, 331033, 353350, 375494, 397447, 419210, 440795, 462224, 483532, 504758
+    ];
+
+    function getSolarTermDate(year, n) {
+      const offDate = new Date((31556925974.7 * (year - 1900) + sTermInfo[n] * 60000) + Date.UTC(1900, 0, 6, 2, 5));
+      return new Date(offDate.getUTCFullYear(), offDate.getUTCMonth(), offDate.getUTCDate());
+    }
+
+    function getSolarTermStatus(now) {
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const year = today.getFullYear();
+      const candidates = [];
+
+      for (let y = year - 1; y <= year + 1; y++) {
+        for (let i = 0; i < 24; i++) {
+          candidates.push({ name: solarTerms[i], date: getSolarTermDate(y, i) });
+        }
+      }
+
+      let currentTerm = "";
+      let nextTerm = null;
+      let daysToNext = 0;
+
+      for (let i = 0; i < candidates.length; i++) {
+        const diffDays = Math.round((candidates[i].date - today) / 86400000);
+        if (diffDays === 0) {
+          return `今日節氣：${candidates[i].name}`;
+        }
+        if (diffDays < 0) {
+          currentTerm = candidates[i].name;
+        } else if (diffDays > 0 && !nextTerm) {
+          nextTerm = candidates[i].name;
+          daysToNext = diffDays;
+          break;
+        }
+      }
+
+      if (daysToNext === 1) return `${currentTerm} · 明日${nextTerm}`;
+      if (daysToNext <= 5) return `${currentTerm} · ${daysToNext}天後${nextTerm}`;
+      return `節氣：${currentTerm}`;
+    }
+
+    function getLunarString(now) {
+      try {
+        const fmt = new Intl.DateTimeFormat('zh-Hant-TW-u-ca-chinese', { month: 'long', day: 'numeric' });
+        const parts = fmt.formatToParts(now);
+        let rawMonth = "", rawDay = "";
+        parts.forEach(p => {
+          if (p.type === 'month') rawMonth = p.value;
+          if (p.type === 'day') rawDay = p.value;
+        });
+
+        const monthNames = {
+          "1月": "正月", "2月": "二月", "3月": "三月", "4月": "四月",
+          "5月": "五月", "6月": "六月", "7月": "七月", "8月": "八月",
+          "9月": "九月", "10月": "十月", "11月": "冬月", "12月": "臘月"
+        };
+        let cleanMonth = rawMonth;
+        const isLeap = rawMonth.indexOf("閏") !== -1;
+        const numPart = rawMonth.replace("閏", "");
+        if (monthNames[numPart]) {
+          cleanMonth = (isLeap ? "閏" : "") + monthNames[numPart];
+        }
+
+        const chineseDays = [
+          "初一", "初二", "初三", "初四", "初五", "初六", "初七", "初八", "初九", "初十",
+          "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十",
+          "廿一", "廿二", "廿三", "廿四", "廿五", "廿六", "廿七", "廿八", "廿九", "三十"
+        ];
+        const dNum = parseInt(rawDay, 10);
+        const cleanDay = (!isNaN(dNum) && chineseDays[dNum - 1]) ? chineseDays[dNum - 1] : rawDay;
+
+        return `農曆${cleanMonth}${cleanDay}`;
+      } catch (e) {
+        return "";
+      }
+    }
 
     let tempWakeTimer = null;
     let isTemporarilyBright = false;
+    let lastDateKey = "";
 
     function isNightTime(hour) {
       if (NIGHT_START_HOUR > NIGHT_END_HOUR) {
@@ -145,7 +358,7 @@
       }
     }
 
-    // 深夜期間點擊螢幕任一處，暫時恢復正常亮度 10 秒
+    // 深夜期間點擊螢幕任一處，暫時恢復 100% 亮度 10 秒
     document.body.addEventListener('click', () => {
       const hour = new Date().getHours();
       if (!isNightTime(hour)) return;
@@ -168,9 +381,17 @@
       document.getElementById('time').textContent = `${pad(hour)}:${pad(now.getMinutes())}`;
       document.getElementById('seconds').textContent = pad(now.getSeconds());
 
-      const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
-      document.getElementById('date').textContent =
-        `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日 ${weekdays[now.getDay()]}`;
+      const dateKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+      if (dateKey !== lastDateKey) {
+        lastDateKey = dateKey;
+        const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+        document.getElementById('date').textContent =
+          `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日 ${weekdays[now.getDay()]}`;
+
+        const lunarStr = getLunarString(now);
+        const termStr = getSolarTermStatus(now);
+        document.getElementById('lunar').textContent = lunarStr ? `${lunarStr} · ${termStr}` : termStr;
+      }
 
       applyBrightnessMode(hour);
 
@@ -182,27 +403,80 @@
       }
     }
 
-    async function fetchWeather() {
+    async function fetchWeatherAndHourly() {
       try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,relative_humidity_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&hourly=precipitation_probability,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=2`;
         const res = await fetch(url);
         const data = await res.json();
         const cur = data.current;
         const daily = data.daily;
+        const hourly = data.hourly;
 
         document.getElementById('temp').textContent = `${Math.round(cur.temperature_2m)}°`;
-        document.getElementById('condition').textContent = weatherMap[cur.weather_code] || "🌤️ 多雲時晴";
+        document.getElementById('condition').textContent = weatherTextMap[cur.weather_code] || "🌤️ 多雲時晴";
         document.getElementById('detail').textContent =
-          `最高 ${Math.round(daily.temperature_2m_max[0])}° / 最低 ${Math.round(daily.temperature_2m_min[0])}° · 濕度 ${cur.relative_humidity_2m}%`;
+          `最高 ${Math.round(daily.temperature_2m_max[0])}° / 最低 ${Math.round(daily.temperature_2m_min[0])}° · 體感 ${Math.round(cur.apparent_temperature)}° · 濕度 ${cur.relative_humidity_2m}% · 風速 ${Math.round(cur.wind_speed_10m)} km/h`;
+
+        // 找出目前整點並渲染未來 6 小時降雨機率
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const currentIsoHour = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:00`;
+        let startIdx = hourly.time.indexOf(currentIsoHour);
+        if (startIdx === -1) startIdx = 0;
+
+        let stripHtml = "";
+        for (let i = 0; i < 6; i++) {
+          const idx = startIdx + i;
+          if (!hourly.time[idx]) break;
+          const timeLabel = i === 0 ? "現在" : hourly.time[idx].slice(11, 16);
+          const code = hourly.weather_code[idx];
+          const prob = hourly.precipitation_probability[idx];
+          const icon = weatherIconMap[code] || "🌤️";
+          const alertClass = prob >= 40 ? "rain-alert" : "";
+
+          stripHtml += `
+            <div class="hour-item">
+              <span class="hour-time">${timeLabel}</span>
+              <span class="hour-icon">${icon}</span>
+              <span class="hour-rain ${alertClass}">💧 ${prob}%</span>
+            </div>
+          `;
+        }
+        document.getElementById('hourly-strip').innerHTML = stripHtml;
       } catch (e) {
         document.getElementById('condition').textContent = "無法取得天氣資料";
       }
     }
 
+    async function fetchAirQuality() {
+      try {
+        const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${LAT}&longitude=${LON}&current=pm2_5,us_aqi&timezone=auto`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const aqi = Math.round(data.current.us_aqi);
+        const pm25 = Math.round(data.current.pm2_5);
+
+        let level = "良好", color = "#22c55e";
+        if (aqi > 200) { level = "危害"; color = "#a855f7"; }
+        else if (aqi > 150) { level = "不健康"; color = "#ef4444"; }
+        else if (aqi > 100) { level = "對敏感族群不健康"; color = "#f97316"; }
+        else if (aqi > 50) { level = "普通"; color = "#eab308"; }
+
+        document.getElementById('aqi-dot').style.backgroundColor = color;
+        document.getElementById('aqi-text').textContent = `空氣${level} · AQI ${aqi} · PM2.5 ${pm25}`;
+      } catch (e) {
+        document.getElementById('aqi-text').textContent = "空氣品質暫無資料";
+      }
+    }
+
     updateClock();
     setInterval(updateClock, 1000);
-    fetchWeather();
-    setInterval(fetchWeather, 15 * 60 * 1000);
+    fetchWeatherAndHourly();
+    fetchAirQuality();
+    setInterval(() => {
+      fetchWeatherAndHourly();
+      fetchAirQuality();
+    }, 15 * 60 * 1000);
   </script>
 </body>
 </html>

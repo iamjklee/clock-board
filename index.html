@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="時鐘看板">
+  <title>全螢幕時鐘與天氣</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      width: 100%; height: 100%;
+      background-color: #000000;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang TC", sans-serif;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .board {
+      width: 100%; height: 100%;
+      padding: max(24px, env(safe-area-inset-top)) max(32px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(32px, env(safe-area-inset-left));
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: opacity 1.2s ease, transform 1.5s ease;
+    }
+    /* 深夜模式：整體壓暗文字與邊框，減少夜間反光刺眼（數值越小越暗，範圍 0.1 ~ 1.0） */
+    .board.night-dimmed {
+      opacity: 0.32;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: clamp(1.1rem, 2.5vw, 1.8rem);
+      color: #a1a1aa;
+      font-weight: 500;
+    }
+    .clock-wrap {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 12px;
+      margin: auto 0;
+    }
+    .time {
+      font-size: clamp(5.5rem, 22vw, 16rem);
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .seconds {
+      font-size: clamp(2rem, 6vw, 4.5rem);
+      font-weight: 400;
+      color: #71717a;
+      font-variant-numeric: tabular-nums;
+    }
+    .weather-bar {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: clamp(16px, 4vw, 40px);
+      padding: 16px 24px;
+      background: #121214;
+      border: 1px solid #27272a;
+      border-radius: 20px;
+      align-self: center;
+    }
+    .temp-main {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 600;
+    }
+    .weather-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: clamp(0.95rem, 2vw, 1.3rem);
+      color: #d4d4d8;
+    }
+    .weather-sub { color: #71717a; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <div class="board" id="board">
+    <div class="top-bar">
+      <span id="date">載入日期中...</span>
+      <span id="location">台北</span>
+    </div>
+
+    <div class="clock-wrap">
+      <div class="time" id="time">00:00</div>
+      <div class="seconds" id="seconds">00</div>
+    </div>
+
+    <div class="weather-bar">
+      <div class="temp-main" id="temp">--°</div>
+      <div class="weather-meta">
+        <div id="condition">天氣載入中...</div>
+        <div class="weather-sub" id="detail">最高 --° / 最低 --° · 濕度 --%</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ================= 自訂設定區 =================
+    const CITY_NAME = "台北";
+    const LAT = 25.0330;          // 緯度
+    const LON = 121.5654;         // 經度
+
+    const NIGHT_START_HOUR = 23;  // 深夜開始時間（24小時制，23 = 晚上 11:00）
+    const NIGHT_END_HOUR = 6;     // 深夜結束時間（24小時制，6 = 早上 06:00 恢復亮起）
+    // ==============================================
+
+    const weatherMap = {
+      0: "☀️ 晴朗", 1: "🌤️ 大致晴朗", 2: "⛅ 多雲", 3: "☁️ 陰天",
+      45: "🌫️ 有霧", 48: "🌫️ 濃霧", 51: "🌦️ 毛毛雨", 53: "🌦️ 小雨",
+      61: "🌧️ 小雨", 63: "🌧️ 中雨", 65: "🌧️ 大雨", 80: "🌦️ 陣雨",
+      81: "🌧️ 強陣雨", 95: "⛈️ 雷陣雨"
+    };
+
+    let tempWakeTimer = null;
+    let isTemporarilyBright = false;
+
+    function isNightTime(hour) {
+      if (NIGHT_START_HOUR > NIGHT_END_HOUR) {
+        return hour >= NIGHT_START_HOUR || hour < NIGHT_END_HOUR;
+      }
+      return hour >= NIGHT_START_HOUR && hour < NIGHT_END_HOUR;
+    }
+
+    function applyBrightnessMode(hour) {
+      const board = document.getElementById('board');
+      const locEl = document.getElementById('location');
+      const nightActive = isNightTime(hour);
+
+      if (nightActive && !isTemporarilyBright) {
+        board.classList.add('night-dimmed');
+        locEl.textContent = `🌙 ${CITY_NAME}`;
+      } else {
+        board.classList.remove('night-dimmed');
+        locEl.textContent = CITY_NAME;
+      }
+    }
+
+    // 深夜期間點擊螢幕任一處，暫時恢復正常亮度 10 秒
+    document.body.addEventListener('click', () => {
+      const hour = new Date().getHours();
+      if (!isNightTime(hour)) return;
+
+      isTemporarilyBright = true;
+      applyBrightnessMode(hour);
+
+      if (tempWakeTimer) clearTimeout(tempWakeTimer);
+      tempWakeTimer = setTimeout(() => {
+        isTemporarilyBright = false;
+        applyBrightnessMode(new Date().getHours());
+      }, 10000);
+    });
+
+    function updateClock() {
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const hour = now.getHours();
+
+      document.getElementById('time').textContent = `${pad(hour)}:${pad(now.getMinutes())}`;
+      document.getElementById('seconds').textContent = pad(now.getSeconds());
+
+      const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+      document.getElementById('date').textContent =
+        `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日 ${weekdays[now.getDay()]}`;
+
+      applyBrightnessMode(hour);
+
+      // 每分鐘微幅位移 2px
+      if (now.getSeconds() === 0) {
+        const dx = (now.getMinutes() % 5) - 2;
+        const dy = ((now.getMinutes() + 2) % 5) - 2;
+        document.getElementById('board').style.transform = `translate(${dx}px, ${dy}px)`;
+      }
+    }
+
+    async function fetchWeather() {
+      try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,relative_humidity_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const cur = data.current;
+        const daily = data.daily;
+
+        document.getElementById('temp').textContent = `${Math.round(cur.temperature_2m)}°`;
+        document.getElementById('condition').textContent = weatherMap[cur.weather_code] || "🌤️ 多雲時晴";
+        document.getElementById('detail').textContent =
+          `最高 ${Math.round(daily.temperature_2m_max[0])}° / 最低 ${Math.round(daily.temperature_2m_min[0])}° · 濕度 ${cur.relative_humidity_2m}%`;
+      } catch (e) {
+        document.getElementById('condition').textContent = "無法取得天氣資料";
+      }
+    }
+
+    updateClock();
+    setInterval(updateClock, 1000);
+    fetchWeather();
+    setInterval(fetchWeather, 15 * 60 * 1000);
+  </script>
+</body>
+</html>
